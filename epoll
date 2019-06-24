@@ -1,0 +1,30 @@
+from select import *
+from socket import *
+
+s = socket()
+s.getsockopt(SOL_SOCKET,SO_REUSEADDR,1)
+s.bind(('0.0.0.0',9999))
+s.listen(5)
+
+p = epoll()
+fdmap = {s.fileno():s}
+p.register(s,EPOLLIN | EPOLLERR)
+
+while True:
+	events = p.poll()
+	for fd,event in events: 
+		if fd == s.fileno():
+			c,addr = fdmap[fd].accept()
+			print('connect from',addr)
+
+			p.register(c,EPOLLIN | EPOLLHUP)
+			fdmap[c.fileno()] = c
+		elif event & EPOLLIN:
+			data = fdmap[fd].recv(1024)
+			if not data:
+				p.unregister(fd)
+				fdmap[fd].close()
+				del fdmap[fd]
+			else:
+				print(data.decode())
+				fdmap[fd].send(b'receive')
